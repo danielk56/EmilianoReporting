@@ -1,0 +1,114 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+
+
+```{r}
+library(magrittr)
+library(dplyr)
+library(readr)
+library(lubridate)
+library(leaflet)
+library(ggplot2)
+library(sf)
+library(tidyverse)
+```
+
+```{r}
+df <- read_csv("Downloads/StructureMovementPermits_csv.csv")
+n_distinct(df$`Original Address 1`)
+df <- df[order(df[["Issued Date"]], decreasing = TRUE), ]
+df <- df[!duplicated(df$`Original Address 1`), ]
+df <- df[!grepl("ADU", df$Description),]
+df <- filter(df, `Issued Date` > '2004-01-01')
+```
+
+
+This is the total number of permits issued (1548).
+```{r}
+nrow(df)
+```
+
+This is the # of permits by year 
+
+```{r}
+df %>%
+mutate(year = format(`Issued Date`, "%Y")) %>%
+group_by(year) %>%
+summarise(count = n_distinct(`Original Address 1`))
+```
+This is the # of permits by year and by Zip Code, in order of frequency
+```{r}
+cross <- df %>%
+mutate(year = format(`Issued Date`, "%Y")) %>%
+group_by(year, `Original Zip`) %>%
+summarise(count = n_distinct(`Original Address 1`))
+
+cross[order(-cross$count),]
+
+```
+
+
+This is the # of permits by Zip Code, in order of frequency
+```{r}
+zip <- df %>%
+group_by(`Original Zip`) %>%
+summarise(count = n_distinct(`Original Address 1`))
+
+zip[order(-zip$count),]
+
+```
+
+This is the # of permits by Council District, in order of frequency
+```{r}
+council <- df %>%
+group_by(`Council District`) %>%
+summarise(count = n_distinct(`Original Address 1`))
+
+council[order(-council$count),]
+```
+This is the # of permits by Contractor, in order of frequency
+```{r}
+contractor <- df %>%
+group_by(`Contractor Company Name`) %>%
+summarise(count = n_distinct(`Original Address 1`))
+
+contractor[order(-contractor$count),]
+```
+
+
+Creating a new column of complete addresses
+```{r}
+df$Combined<-paste(df$`Original Address 1`,df$`Original City`,sep=",")
+df$Combined <- paste(df$Combined, df$`Original State`,sep=",")
+df$Combined <- paste(df$Combined, df$`Original Zip`,sep=",")
+```
+
+
+Map of Different Addresses
+```{r}
+library(ggmap)
+library(tidygeocoder)
+library(mapview)
+AddressFrequency <- function(addresses){
+  tab <- table(addresses)
+  unique.points <- data.frame(address=names(tab), frequency = c(tab))
+  rownames(unique.points) <- NULL
+  unique.points
+}
+freq <- AddressFrequency(df$Combined)
+freq <- cbind(freq, geocode(freq, address = address))
+
+newfreq <- na.omit(freq)
+
+
+mapview(newfreq, xcol = "long", ycol = "lat", crs = 4269, grid = FALSE)
+
+```
+
+
